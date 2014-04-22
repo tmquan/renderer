@@ -634,26 +634,92 @@ main(int argc, char **argv)
     // calculate new grid size
     gridSize = dim3(iDivUp(width, blockSize.x), iDivUp(height, blockSize.y));
 
-    if (ref_file)
+    // if (ref_file)
+    // {
+        // runSingleTest(ref_file, argv[0]);
+    // }
+    // else
+    // {
+        // // This is the normal rendering path for VolumeRender
+        // glutDisplayFunc(display);
+        // glutKeyboardFunc(keyboard);
+        // glutMouseFunc(mouse);
+        // glutMotionFunc(motion);
+        // glutReshapeFunc(reshape);
+        // glutIdleFunc(idle);
+
+        // initPixelBuffer();
+
+        // atexit(cleanup);
+
+        // glutMainLoop();
+    // }
+	
+	
+	 uint *d_output;
+    checkCudaErrors(cudaMalloc((void **)&d_output, width*height*sizeof(uint)));
+    checkCudaErrors(cudaMemset(d_output, 0, width*height*sizeof(uint)));
+
+    float modelView[16] =
     {
-        runSingleTest(ref_file, argv[0]);
-    }
-    else
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 4.0f, 1.0f
+    };
+
+    invViewMatrix[0] = modelView[0];
+    invViewMatrix[1] = modelView[4];
+    invViewMatrix[2] = modelView[8];
+    invViewMatrix[3] = modelView[12];
+    invViewMatrix[4] = modelView[1];
+    invViewMatrix[5] = modelView[5];
+    invViewMatrix[6] = modelView[9];
+    invViewMatrix[7] = modelView[13];
+    invViewMatrix[8] = modelView[2];
+    invViewMatrix[9] = modelView[6];
+    invViewMatrix[10] = modelView[10];
+    invViewMatrix[11] = modelView[14];
+
+    // call CUDA kernel, writing results to PBO
+    copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
+
+    // Start timer 0 and process n loops on the GPU
+    int nIter = 10;
+
+    for (int i = -1; i < nIter; i++)
     {
-        // This is the normal rendering path for VolumeRender
-        glutDisplayFunc(display);
-        glutKeyboardFunc(keyboard);
-        glutMouseFunc(mouse);
-        glutMotionFunc(motion);
-        glutReshapeFunc(reshape);
-        glutIdleFunc(idle);
+        if (i == 0)
+        {
+            cudaDeviceSynchronize();
+            sdkStartTimer(&timer);
+        }
 
-        initPixelBuffer();
-
-        atexit(cleanup);
-
-        glutMainLoop();
+        render_kernel(gridSize, blockSize, d_output, width, height, density, brightness, transferOffset, transferScale);
     }
+
+    cudaDeviceSynchronize();
+    sdkStopTimer(&timer);
+    // Get elapsed time and throughput, then log to sample and master logs
+    double dAvgTime = sdkGetTimerValue(&timer)/(nIter * 1000.0);
+    printf("volumeRender, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n",
+           (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y);
+
+
+    getLastCudaError("Error: render_kernel() execution FAILED");
+    checkCudaErrors(cudaDeviceSynchronize());
+
+    unsigned char *h_output = (unsigned char *)malloc(width*height*4);
+    checkCudaErrors(cudaMemcpy(h_output, d_output, width*height*4, cudaMemcpyDeviceToHost));
+
+    sdkSavePPM4ub("volume.ppm", h_output, width, height);
+    // bTestResult = sdkComparePPM("volume.ppm", sdkFindFilePath(ref_file, exec_path), MAX_EPSILON_ERROR, THRESHOLD, true);
+
+    cudaFree(d_output);
+    free(h_output);
+    cleanup();
+
+    // exit(bTestResult ? EXIT_SUCCESS : EXIT_FAILURE);
 
     cudaDeviceReset();
     exit(EXIT_SUCCESS);
