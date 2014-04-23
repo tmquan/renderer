@@ -1,28 +1,3 @@
-/*
- * Copyright 1993-2013 NVIDIA Corporation.  All rights reserved.
- *
- * Please refer to the NVIDIA end user license agreement (EULA) associated
- * with this source code for terms and conditions that govern your use of
- * this software. Any use, reproduction, disclosure, or distribution of
- * this software and related documentation outside the terms of the EULA
- * is strictly prohibited.
- *
- */
-
-/*
-    Volume rendering sample
-
-    This sample loads a 3D volume from disk and displays it using
-    ray marching and 3D textures.
-
-    Note - this is intended to be an example of using 3D textures
-    in CUDA, not an optimized volume renderer.
-
-    Changes
-    sgg 22/3/2010
-    - updated to use texture for display instead of glDrawPixels.
-    - changed to render from front-to-back rather than back-to-front.
-*/
 
 // OpenGL Graphics includes
 #include <GL/glew.h>
@@ -48,6 +23,11 @@
 #include <helper_functions.h>
 #include <helper_timer.h>
 
+#include <opencv2/opencv.hpp>
+using namespace cv;
+
+#include <iostream>
+using namespace std;
 typedef unsigned int uint;
 typedef unsigned char uchar;
 
@@ -118,26 +98,26 @@ extern "C" void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output, uin
                               float density, float brightness, float transferOffset, float transferScale);
 extern "C" void copyInvViewMatrix(float *invViewMatrix, size_t sizeofMatrix);
 
-void initPixelBuffer();
+// void initPixelBuffer();
 
-void computeFPS()
-{
-    frameCount++;
-    fpsCount++;
+// void computeFPS()
+// {
+    // frameCount++;
+    // fpsCount++;
 
-    if (fpsCount == fpsLimit)
-    {
-        char fps[256];
-        float ifps = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
-        sprintf(fps, "Volume Render: %3.1f fps", ifps);
+    // if (fpsCount == fpsLimit)
+    // {
+        // char fps[256];
+        // float ifps = 1.f / (sdkGetAverageTimerValue(&timer) / 1000.f);
+        // sprintf(fps, "Volume Render: %3.1f fps", ifps);
 
-        glutSetWindowTitle(fps);
-        fpsCount = 0;
+        // glutSetWindowTitle(fps);
+        // fpsCount = 0;
 
-        fpsLimit = (int)MAX(1.f, ifps);
-        sdkResetTimer(&timer);
-    }
-}
+        // fpsLimit = (int)MAX(1.f, ifps);
+        // sdkResetTimer(&timer);
+    // }
+// }
 
 // render image using CUDA
 void render()
@@ -164,274 +144,311 @@ void render()
     checkCudaErrors(cudaGraphicsUnmapResources(1, &cuda_pbo_resource, 0));
 }
 
-// display results using OpenGL (called by GLUT)
-void display()
+// // display results using OpenGL (called by GLUT)
+// void display()
+// {
+    // sdkStartTimer(&timer);
+
+    // // use OpenGL to build view matrix
+    // GLfloat modelView[16];
+    // glMatrixMode(GL_MODELVIEW);
+    // glPushMatrix();
+    // glLoadIdentity();
+    // glRotatef(-viewRotation.x, 1.0, 0.0, 0.0);
+    // glRotatef(-viewRotation.y, 0.0, 1.0, 0.0);
+    // glTranslatef(-viewTranslation.x, -viewTranslation.y, -viewTranslation.z);
+    // glGetFloatv(GL_MODELVIEW_MATRIX, modelView);
+    // glPopMatrix();
+
+    // invViewMatrix[0] = modelView[0];
+    // invViewMatrix[1] = modelView[4];
+    // invViewMatrix[2] = modelView[8];
+    // invViewMatrix[3] = modelView[12];
+    // invViewMatrix[4] = modelView[1];
+    // invViewMatrix[5] = modelView[5];
+    // invViewMatrix[6] = modelView[9];
+    // invViewMatrix[7] = modelView[13];
+    // invViewMatrix[8] = modelView[2];
+    // invViewMatrix[9] = modelView[6];
+    // invViewMatrix[10] = modelView[10];
+    // invViewMatrix[11] = modelView[14];
+
+    // render();
+
+    // // display results
+    // glClear(GL_COLOR_BUFFER_BIT);
+
+    // // draw image from PBO
+    // glDisable(GL_DEPTH_TEST);
+
+    // glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+// #if 0
+    // // draw using glDrawPixels (slower)
+    // glRasterPos2i(0, 0);
+    // glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+    // glDrawPixels(width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    // glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+// #else
+    // // draw using texture
+
+    // // copy from pbo to texture
+    // glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+    // glBindTexture(GL_TEXTURE_2D, tex);
+    // glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    // glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+    // // draw textured quad
+    // glEnable(GL_TEXTURE_2D);
+    // glBegin(GL_QUADS);
+    // glTexCoord2f(0, 0);
+    // glVertex2f(0, 0);
+    // glTexCoord2f(1, 0);
+    // glVertex2f(1, 0);
+    // glTexCoord2f(1, 1);
+    // glVertex2f(1, 1);
+    // glTexCoord2f(0, 1);
+    // glVertex2f(0, 1);
+    // glEnd();
+
+    // glDisable(GL_TEXTURE_2D);
+    // glBindTexture(GL_TEXTURE_2D, 0);
+// #endif
+
+    // glutSwapBuffers();
+    // glutReportErrors();
+
+    // sdkStopTimer(&timer);
+
+    // computeFPS();
+// }
+
+static void onMouse( int event, int x, int y, int, void* )
 {
-    sdkStartTimer(&timer);
+    if( event != EVENT_LBUTTONDOWN )
+        return;
 
-    // use OpenGL to build view matrix
-    GLfloat modelView[16];
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-    glRotatef(-viewRotation.x, 1.0, 0.0, 0.0);
-    glRotatef(-viewRotation.y, 0.0, 1.0, 0.0);
-    glTranslatef(-viewTranslation.x, -viewTranslation.y, -viewTranslation.z);
-    glGetFloatv(GL_MODELVIEW_MATRIX, modelView);
-    glPopMatrix();
+    // Point seed = Point(x,y);
+    // int lo = ffillMode == 0 ? 0 : loDiff;
+    // int up = ffillMode == 0 ? 0 : upDiff;
+    // int flags = connectivity + (newMaskVal << 8) +
+                // (ffillMode == 1 ? FLOODFILL_FIXED_RANGE : 0);
+    // int b = (unsigned)theRNG() & 255;
+    // int g = (unsigned)theRNG() & 255;
+    // int r = (unsigned)theRNG() & 255;
+    // Rect ccomp;
 
-    invViewMatrix[0] = modelView[0];
-    invViewMatrix[1] = modelView[4];
-    invViewMatrix[2] = modelView[8];
-    invViewMatrix[3] = modelView[12];
-    invViewMatrix[4] = modelView[1];
-    invViewMatrix[5] = modelView[5];
-    invViewMatrix[6] = modelView[9];
-    invViewMatrix[7] = modelView[13];
-    invViewMatrix[8] = modelView[2];
-    invViewMatrix[9] = modelView[6];
-    invViewMatrix[10] = modelView[10];
-    invViewMatrix[11] = modelView[14];
+    // Scalar newVal = isColor ? Scalar(b, g, r) : Scalar(r*0.299 + g*0.587 + b*0.114);
+    // Mat dst = isColor ? image : gray;
+    // int area;
 
-    render();
+    // if( useMask )
+    // {
+        // threshold(mask, mask, 1, 128, THRESH_BINARY);
+        // area = floodFill(dst, mask, seed, newVal, &ccomp, Scalar(lo, lo, lo),
+                  // Scalar(up, up, up), flags);
+        // imshow( "mask", mask );
+    // }
+    // else
+    // {
+        // area = floodFill(dst, seed, newVal, &ccomp, Scalar(lo, lo, lo),
+                  // Scalar(up, up, up), flags);
+    // }
 
-    // display results
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    // draw image from PBO
-    glDisable(GL_DEPTH_TEST);
-
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-#if 0
-    // draw using glDrawPixels (slower)
-    glRasterPos2i(0, 0);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-    glDrawPixels(width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-#else
-    // draw using texture
-
-    // copy from pbo to texture
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
-
-    // draw textured quad
-    glEnable(GL_TEXTURE_2D);
-    glBegin(GL_QUADS);
-    glTexCoord2f(0, 0);
-    glVertex2f(0, 0);
-    glTexCoord2f(1, 0);
-    glVertex2f(1, 0);
-    glTexCoord2f(1, 1);
-    glVertex2f(1, 1);
-    glTexCoord2f(0, 1);
-    glVertex2f(0, 1);
-    glEnd();
-
-    glDisable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, 0);
-#endif
-
-    glutSwapBuffers();
-    glutReportErrors();
-
-    sdkStopTimer(&timer);
-
-    computeFPS();
+    // imshow("image", dst);
+    // cout << area << " pixels were repainted\n";
+    cout << x << " " << y << endl;
 }
 
-void idle()
-{
-    glutPostRedisplay();
-}
+// void idle()
+// {
+    // glutPostRedisplay();
+// }
 
-void keyboard(unsigned char key, int x, int y)
-{
-    switch (key)
-    {
-        case 27:
-            exit(EXIT_SUCCESS);
-            break;
+// void keyboard(unsigned char key, int x, int y)
+// {
+    // switch (key)
+    // {
+        // case 27:
+            // exit(EXIT_SUCCESS);
+            // break;
 
-        case 'f':
-            linearFiltering = !linearFiltering;
-            setTextureFilterMode(linearFiltering);
-            break;
+        // case 'f':
+            // linearFiltering = !linearFiltering;
+            // setTextureFilterMode(linearFiltering);
+            // break;
 
-        case '+':
-            density += 0.01f;
-            break;
+        // case '+':
+            // density += 0.01f;
+            // break;
 
-        case '-':
-            density -= 0.01f;
-            break;
+        // case '-':
+            // density -= 0.01f;
+            // break;
 
-        case ']':
-            brightness += 0.1f;
-            break;
+        // case ']':
+            // brightness += 0.1f;
+            // break;
 
-        case '[':
-            brightness -= 0.1f;
-            break;
+        // case '[':
+            // brightness -= 0.1f;
+            // break;
 
-        case ';':
-            transferOffset += 0.01f;
-            break;
+        // case ';':
+            // transferOffset += 0.01f;
+            // break;
 
-        case '\'':
-            transferOffset -= 0.01f;
-            break;
+        // case '\'':
+            // transferOffset -= 0.01f;
+            // break;
 
-        case '.':
-            transferScale += 0.01f;
-            break;
+        // case '.':
+            // transferScale += 0.01f;
+            // break;
 
-        case ',':
-            transferScale -= 0.01f;
-            break;
+        // case ',':
+            // transferScale -= 0.01f;
+            // break;
 
-        default:
-            break;
-    }
+        // default:
+            // break;
+    // }
 
-    printf("density = %.2f, brightness = %.2f, transferOffset = %.2f, transferScale = %.2f\n", density, brightness, transferOffset, transferScale);
-    glutPostRedisplay();
-}
+    // printf("density = %.2f, brightness = %.2f, transferOffset = %.2f, transferScale = %.2f\n", density, brightness, transferOffset, transferScale);
+    // glutPostRedisplay();
+// }
 
-int ox, oy;
-int buttonState = 0;
+// int ox, oy;
+// int buttonState = 0;
 
-void mouse(int button, int state, int x, int y)
-{
-    if (state == GLUT_DOWN)
-    {
-        buttonState  |= 1<<button;
-    }
-    else if (state == GLUT_UP)
-    {
-        buttonState = 0;
-    }
+// void mouse(int button, int state, int x, int y)
+// {
+    // if (state == GLUT_DOWN)
+    // {
+        // buttonState  |= 1<<button;
+    // }
+    // else if (state == GLUT_UP)
+    // {
+        // buttonState = 0;
+    // }
 
-    ox = x;
-    oy = y;
-    glutPostRedisplay();
-}
+    // ox = x;
+    // oy = y;
+    // glutPostRedisplay();
+// }
 
-void motion(int x, int y)
-{
-    float dx, dy;
-    dx = (float)(x - ox);
-    dy = (float)(y - oy);
+// void motion(int x, int y)
+// {
+    // float dx, dy;
+    // dx = (float)(x - ox);
+    // dy = (float)(y - oy);
 
-    if (buttonState == 4)
-    {
-        // right = zoom
-        viewTranslation.z += dy / 100.0f;
-    }
-    else if (buttonState == 2)
-    {
-        // middle = translate
-        viewTranslation.x += dx / 100.0f;
-        viewTranslation.y -= dy / 100.0f;
-    }
-    else if (buttonState == 1)
-    {
-        // left = rotate
-        viewRotation.x += dy / 5.0f;
-        viewRotation.y += dx / 5.0f;
-    }
+    // if (buttonState == 4)
+    // {
+        // // right = zoom
+        // viewTranslation.z += dy / 100.0f;
+    // }
+    // else if (buttonState == 2)
+    // {
+        // // middle = translate
+        // viewTranslation.x += dx / 100.0f;
+        // viewTranslation.y -= dy / 100.0f;
+    // }
+    // else if (buttonState == 1)
+    // {
+        // // left = rotate
+        // viewRotation.x += dy / 5.0f;
+        // viewRotation.y += dx / 5.0f;
+    // }
 
-    ox = x;
-    oy = y;
-    glutPostRedisplay();
-}
+    // ox = x;
+    // oy = y;
+    // glutPostRedisplay();
+// }
 
 int iDivUp(int a, int b)
 {
     return (a % b != 0) ? (a / b + 1) : (a / b);
 }
 
-void reshape(int w, int h)
-{
-    width = w;
-    height = h;
-    initPixelBuffer();
+// void reshape(int w, int h)
+// {
+    // width = w;
+    // height = h;
+    // initPixelBuffer();
 
-    // calculate new grid size
-    gridSize = dim3(iDivUp(width, blockSize.x), iDivUp(height, blockSize.y));
+    // // calculate new grid size
+    // gridSize = dim3(iDivUp(width, blockSize.x), iDivUp(height, blockSize.y));
 
-    glViewport(0, 0, w, h);
+    // glViewport(0, 0, w, h);
 
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    // glMatrixMode(GL_MODELVIEW);
+    // glLoadIdentity();
 
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
-}
+    // glMatrixMode(GL_PROJECTION);
+    // glLoadIdentity();
+    // glOrtho(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+// }
 
-void cleanup()
-{
-    sdkDeleteTimer(&timer);
+// void cleanup()
+// {
+    // sdkDeleteTimer(&timer);
 
-    freeCudaBuffers();
+    // freeCudaBuffers();
 
-    if (pbo)
-    {
-        cudaGraphicsUnregisterResource(cuda_pbo_resource);
-        glDeleteBuffersARB(1, &pbo);
-        glDeleteTextures(1, &tex);
-    }
-}
+    // if (pbo)
+    // {
+        // cudaGraphicsUnregisterResource(cuda_pbo_resource);
+        // glDeleteBuffersARB(1, &pbo);
+        // glDeleteTextures(1, &tex);
+    // }
+// }
 
-void initGL(int *argc, char **argv)
-{
-    // initialize GLUT callback functions
-    glutInit(argc, argv);
-    glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
-    glutInitWindowSize(width, height);
-    glutCreateWindow("CUDA volume rendering");
+// void initGL(int *argc, char **argv)
+// {
+    // // initialize GLUT callback functions
+    // glutInit(argc, argv);
+    // glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
+    // glutInitWindowSize(width, height);
+    // glutCreateWindow("CUDA volume rendering");
 
-    glewInit();
+    // glewInit();
 
-    if (!glewIsSupported("GL_VERSION_2_0 GL_ARB_pixel_buffer_object"))
-    {
-        printf("Required OpenGL extensions missing.");
-        exit(EXIT_SUCCESS);
-    }
-}
+    // if (!glewIsSupported("GL_VERSION_2_0 GL_ARB_pixel_buffer_object"))
+    // {
+        // printf("Required OpenGL extensions missing.");
+        // exit(EXIT_SUCCESS);
+    // }
+// }
 
-void initPixelBuffer()
-{
-    if (pbo)
-    {
-        // unregister this buffer object from CUDA C
-        checkCudaErrors(cudaGraphicsUnregisterResource(cuda_pbo_resource));
+// void initPixelBuffer()
+// {
+    // if (pbo)
+    // {
+        // // unregister this buffer object from CUDA C
+        // checkCudaErrors(cudaGraphicsUnregisterResource(cuda_pbo_resource));
 
-        // delete old buffer
-        glDeleteBuffersARB(1, &pbo);
-        glDeleteTextures(1, &tex);
-    }
+        // // delete old buffer
+        // glDeleteBuffersARB(1, &pbo);
+        // glDeleteTextures(1, &tex);
+    // }
 
-    // create pixel buffer object for display
-    glGenBuffersARB(1, &pbo);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
-    glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(GLubyte)*4, 0, GL_STREAM_DRAW_ARB);
-    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+    // // create pixel buffer object for display
+    // glGenBuffersARB(1, &pbo);
+    // glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+    // glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(GLubyte)*4, 0, GL_STREAM_DRAW_ARB);
+    // glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
 
-    // register this buffer object with CUDA
-    checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_pbo_resource, pbo, cudaGraphicsMapFlagsWriteDiscard));
+    // // register this buffer object with CUDA
+    // checkCudaErrors(cudaGraphicsGLRegisterBuffer(&cuda_pbo_resource, pbo, cudaGraphicsMapFlagsWriteDiscard));
 
-    // create texture for display
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture(GL_TEXTURE_2D, 0);
-}
+    // // create texture for display
+    // glGenTextures(1, &tex);
+    // glBindTexture(GL_TEXTURE_2D, tex);
+    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    // glBindTexture(GL_TEXTURE_2D, 0);
+// }
 
 // Load raw data from disk
 void *loadRawFile(char *filename, size_t size)
@@ -454,91 +471,129 @@ void *loadRawFile(char *filename, size_t size)
 }
 
 // General initialization call for CUDA Device
-int chooseCudaDevice(int argc, const char **argv, bool bUseOpenGL)
+// int chooseCudaDevice(int argc, const char **argv, bool bUseOpenGL)
+// {
+    // int result = 0;
+
+    // if (bUseOpenGL)
+    // {
+        // result = findCudaGLDevice(argc, argv);
+    // }
+    // else
+    // {
+        // result = findCudaDevice(argc, argv);
+    // }
+
+    // return result;
+// }
+
+// void runSingleTest(const char *ref_file, const char *exec_path)
+// {
+    // bool bTestResult = true;
+
+    // uint *d_output;
+    // checkCudaErrors(cudaMalloc((void **)&d_output, width*height*sizeof(uint)));
+    // checkCudaErrors(cudaMemset(d_output, 0, width*height*sizeof(uint)));
+
+    // float modelView[16] =
+    // {
+        // 1.0f, 0.0f, 0.0f, 0.0f,
+        // 0.0f, 1.0f, 0.0f, 0.0f,
+        // 0.0f, 0.0f, 1.0f, 0.0f,
+        // 0.0f, 0.0f, 4.0f, 1.0f
+    // };
+
+    // invViewMatrix[0] = modelView[0];
+    // invViewMatrix[1] = modelView[4];
+    // invViewMatrix[2] = modelView[8];
+    // invViewMatrix[3] = modelView[12];
+    // invViewMatrix[4] = modelView[1];
+    // invViewMatrix[5] = modelView[5];
+    // invViewMatrix[6] = modelView[9];
+    // invViewMatrix[7] = modelView[13];
+    // invViewMatrix[8] = modelView[2];
+    // invViewMatrix[9] = modelView[6];
+    // invViewMatrix[10] = modelView[10];
+    // invViewMatrix[11] = modelView[14];
+
+    // // call CUDA kernel, writing results to PBO
+    // copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
+
+    // // Start timer 0 and process n loops on the GPU
+    // int nIter = 10;
+
+    // for (int i = -1; i < nIter; i++)
+    // {
+        // if (i == 0)
+        // {
+            // cudaDeviceSynchronize();
+            // sdkStartTimer(&timer);
+        // }
+
+        // render_kernel(gridSize, blockSize, d_output, width, height, density, brightness, transferOffset, transferScale);
+    // }
+
+    // cudaDeviceSynchronize();
+    // sdkStopTimer(&timer);
+    // // Get elapsed time and throughput, then log to sample and master logs
+    // double dAvgTime = sdkGetTimerValue(&timer)/(nIter * 1000.0);
+    // printf("volumeRender, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n",
+           // (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y);
+
+
+    // getLastCudaError("Error: render_kernel() execution FAILED");
+    // checkCudaErrors(cudaDeviceSynchronize());
+
+    // unsigned char *h_output = (unsigned char *)malloc(width*height*4);
+    // checkCudaErrors(cudaMemcpy(h_output, d_output, width*height*4, cudaMemcpyDeviceToHost));
+
+    // sdkSavePPM4ub("volume.ppm", h_output, width, height);
+    // bTestResult = sdkComparePPM("volume.ppm", sdkFindFilePath(ref_file, exec_path), MAX_EPSILON_ERROR, THRESHOLD, true);
+
+    // cudaFree(d_output);
+    // free(h_output);
+    // cleanup();
+
+    // exit(bTestResult ? EXIT_SUCCESS : EXIT_FAILURE);
+// }
+
+
+
+void rotate()
 {
-    int result = 0;
-
-    if (bUseOpenGL)
-    {
-        result = findCudaGLDevice(argc, argv);
-    }
-    else
-    {
-        result = findCudaDevice(argc, argv);
-    }
-
-    return result;
+	const float angle = 3.1415926f / 10.0f;
+ 	float rotx[16] = {1.0f, 0.0f, 0.0f, 0.0f,
+ 					  0.0f, cos(angle), sin(angle), 0.0f,
+ 					  0.0f,-sin(angle), cos(angle), 0.0f,
+ 					  0.0f, 0.0f, 0.0f, 1.0f};
 }
 
-void runSingleTest(const char *ref_file, const char *exec_path)
+
+bool MatrixMul(float* mat1,int row1,int col1,float* mat2,int row2,int col2,float* out)
 {
-    bool bTestResult = true;
+	if(col1 != row2)
+		return false;
 
-    uint *d_output;
-    checkCudaErrors(cudaMalloc((void **)&d_output, width*height*sizeof(uint)));
-    checkCudaErrors(cudaMemset(d_output, 0, width*height*sizeof(uint)));
-
-    float modelView[16] =
-    {
-        1.0f, 0.0f, 0.0f, 0.0f,
-        0.0f, 1.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f, 0.0f,
-        0.0f, 0.0f, 4.0f, 1.0f
-    };
-
-    invViewMatrix[0] = modelView[0];
-    invViewMatrix[1] = modelView[4];
-    invViewMatrix[2] = modelView[8];
-    invViewMatrix[3] = modelView[12];
-    invViewMatrix[4] = modelView[1];
-    invViewMatrix[5] = modelView[5];
-    invViewMatrix[6] = modelView[9];
-    invViewMatrix[7] = modelView[13];
-    invViewMatrix[8] = modelView[2];
-    invViewMatrix[9] = modelView[6];
-    invViewMatrix[10] = modelView[10];
-    invViewMatrix[11] = modelView[14];
-
-    // call CUDA kernel, writing results to PBO
-    copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
-
-    // Start timer 0 and process n loops on the GPU
-    int nIter = 10;
-
-    for (int i = -1; i < nIter; i++)
-    {
-        if (i == 0)
-        {
-            cudaDeviceSynchronize();
-            sdkStartTimer(&timer);
-        }
-
-        render_kernel(gridSize, blockSize, d_output, width, height, density, brightness, transferOffset, transferScale);
-    }
-
-    cudaDeviceSynchronize();
-    sdkStopTimer(&timer);
-    // Get elapsed time and throughput, then log to sample and master logs
-    double dAvgTime = sdkGetTimerValue(&timer)/(nIter * 1000.0);
-    printf("volumeRender, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n",
-           (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y);
-
-
-    getLastCudaError("Error: render_kernel() execution FAILED");
-    checkCudaErrors(cudaDeviceSynchronize());
-
-    unsigned char *h_output = (unsigned char *)malloc(width*height*4);
-    checkCudaErrors(cudaMemcpy(h_output, d_output, width*height*4, cudaMemcpyDeviceToHost));
-
-    sdkSavePPM4ub("volume.ppm", h_output, width, height);
-    bTestResult = sdkComparePPM("volume.ppm", sdkFindFilePath(ref_file, exec_path), MAX_EPSILON_ERROR, THRESHOLD, true);
-
-    cudaFree(d_output);
-    free(h_output);
-    cleanup();
-
-    exit(bTestResult ? EXIT_SUCCESS : EXIT_FAILURE);
+	float* tmpMat = new float[row1 * col2];
+	for(int i = 0;i < row1;i++)
+	{
+		for(int j = 0;j < col2;j++)
+		{
+			float tmp = 0.0f;
+			for(int k = 0; k < col1;k++)
+				tmp += mat1[i * col1 + k] * mat2[k * col2 + j];
+			tmpMat[i * col2 + j] = tmp;
+		}
+	}
+	for(int i = 0;i < row1;i++)
+	{
+		for(int j = 0;j < col2;j++)
+			out[i * col2 + j] = tmpMat[i * col2 + j];
+	}
+	delete []tmpMat;
+	return true;
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
@@ -546,68 +601,68 @@ void runSingleTest(const char *ref_file, const char *exec_path)
 int
 main(int argc, char **argv)
 {
-    pArgc = &argc;
-    pArgv = argv;
+    // pArgc = &argc;
+    // pArgv = argv;
 
-    char *ref_file = NULL;
+    // char *ref_file = NULL;
 
-    //start logs
-    printf("%s Starting...\n\n", sSDKsample);
+    // //start logs
+    // printf("%s Starting...\n\n", sSDKsample);
 
-    if (checkCmdLineFlag(argc, (const char **)argv, "file"))
-    {
-        getCmdLineArgumentString(argc, (const char **)argv, "file", &ref_file);
-        fpsLimit = frameCheckNumber;
-    }
+    // if (checkCmdLineFlag(argc, (const char **)argv, "file"))
+    // {
+        // getCmdLineArgumentString(argc, (const char **)argv, "file", &ref_file);
+        // fpsLimit = frameCheckNumber;
+    // }
 
-    if (ref_file)
-    {
-        // use command-line specified CUDA device, otherwise use device with highest Gflops/s
-        chooseCudaDevice(argc, (const char **)argv, false);
-    }
-    else
-    {
+    // if (ref_file)
+    // {
+        // // use command-line specified CUDA device, otherwise use device with highest Gflops/s
+        // chooseCudaDevice(argc, (const char **)argv, false);
+    // }
+    // else
+    // {
         // First initialize OpenGL context, so we can properly set the GL for CUDA.
         // This is necessary in order to achieve optimal performance with OpenGL/CUDA interop.
-        initGL(&argc, argv);
+        // initGL(&argc, argv);
 
         // use command-line specified CUDA device, otherwise use device with highest Gflops/s
-        chooseCudaDevice(argc, (const char **)argv, true);
-    }
+        // chooseCudaDevice(argc, (const char **)argv, true);
+    // }
 
-    // parse arguments
-    char *filename;
+    // // parse arguments
+    // char *filename;
 
-    if (getCmdLineArgumentString(argc, (const char **) argv, "volume", &filename))
-    {
-        volumeFilename = filename;
-    }
+    // if (getCmdLineArgumentString(argc, (const char **) argv, "volume", &filename))
+    // {
+        // volumeFilename = filename;
+    // }
 
-    int n;
+    // int n;
 
-    if (checkCmdLineFlag(argc, (const char **) argv, "size"))
-    {
-        n = getCmdLineArgumentInt(argc, (const char **) argv, "size");
-        volumeSize.width = volumeSize.height = volumeSize.depth = n;
-    }
+    // if (checkCmdLineFlag(argc, (const char **) argv, "size"))
+    // {
+        // n = getCmdLineArgumentInt(argc, (const char **) argv, "size");
+        // volumeSize.width = volumeSize.height = volumeSize.depth = n;
+    // }
 
-    if (checkCmdLineFlag(argc, (const char **) argv, "xsize"))
-    {
-        n = getCmdLineArgumentInt(argc, (const char **) argv, "xsize");
-        volumeSize.width = n;
-    }
+    // if (checkCmdLineFlag(argc, (const char **) argv, "xsize"))
+    // {
+        // n = getCmdLineArgumentInt(argc, (const char **) argv, "xsize");
+        // volumeSize.width = n;
+    // }
 
-    if (checkCmdLineFlag(argc, (const char **) argv, "ysize"))
-    {
-        n = getCmdLineArgumentInt(argc, (const char **) argv, "ysize");
-        volumeSize.height = n;
-    }
+    // if (checkCmdLineFlag(argc, (const char **) argv, "ysize"))
+    // {
+        // n = getCmdLineArgumentInt(argc, (const char **) argv, "ysize");
+        // volumeSize.height = n;
+    // }
 
-    if (checkCmdLineFlag(argc, (const char **) argv, "zsize"))
-    {
-        n= getCmdLineArgumentInt(argc, (const char **) argv, "zsize");
-        volumeSize.depth = n;
-    }
+    // if (checkCmdLineFlag(argc, (const char **) argv, "zsize"))
+    // {
+        // n= getCmdLineArgumentInt(argc, (const char **) argv, "zsize");
+        // volumeSize.depth = n;
+    // }
 
     // load volume data
     char *path = sdkFindFilePath(volumeFilename, argv[0]);
@@ -624,12 +679,12 @@ main(int argc, char **argv)
     initCuda(h_volume, volumeSize);
     free(h_volume);
 
-    sdkCreateTimer(&timer);
+    // sdkCreateTimer(&timer);
 
-    printf("Press '+' and '-' to change density (0.01 increments)\n"
-           "      ']' and '[' to change brightness\n"
-           "      ';' and ''' to modify transfer function offset\n"
-           "      '.' and ',' to modify transfer function scale\n\n");
+    // printf("Press '+' and '-' to change density (0.01 increments)\n"
+           // "      ']' and '[' to change brightness\n"
+           // "      ';' and ''' to modify transfer function offset\n"
+           // "      '.' and ',' to modify transfer function scale\n\n");
 
     // calculate new grid size
     gridSize = dim3(iDivUp(width, blockSize.x), iDivUp(height, blockSize.y));
@@ -684,40 +739,93 @@ main(int argc, char **argv)
     // call CUDA kernel, writing results to PBO
     copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
 
-    // Start timer 0 and process n loops on the GPU
-    int nIter = 10;
+    // // Start timer 0 and process n loops on the GPU
+    // int nIter = 10;
 
-    for (int i = -1; i < nIter; i++)
-    {
-        if (i == 0)
-        {
-            cudaDeviceSynchronize();
-            sdkStartTimer(&timer);
-        }
+    // for (int i = -1; i < nIter; i++)
+    // {
+        // if (i == 0)
+        // {
+            // cudaDeviceSynchronize();
+            // sdkStartTimer(&timer);
+        // }
 
-        render_kernel(gridSize, blockSize, d_output, width, height, density, brightness, transferOffset, transferScale);
-    }
+        // render_kernel(gridSize, blockSize, d_output, width, height, density, brightness, transferOffset, transferScale);
+    // }
 
-    cudaDeviceSynchronize();
-    sdkStopTimer(&timer);
-    // Get elapsed time and throughput, then log to sample and master logs
-    double dAvgTime = sdkGetTimerValue(&timer)/(nIter * 1000.0);
-    printf("volumeRender, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n",
-           (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y);
+    // cudaDeviceSynchronize();
+    // sdkStopTimer(&timer);
+    // // Get elapsed time and throughput, then log to sample and master logs
+    // double dAvgTime = sdkGetTimerValue(&timer)/(nIter * 1000.0);
+    // printf("volumeRender, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n",
+           // (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y);
 
 
-    getLastCudaError("Error: render_kernel() execution FAILED");
-    checkCudaErrors(cudaDeviceSynchronize());
+    // getLastCudaError("Error: render_kernel() execution FAILED");
+    // checkCudaErrors(cudaDeviceSynchronize());
 
     unsigned char *h_output = (unsigned char *)malloc(width*height*4);
     checkCudaErrors(cudaMemcpy(h_output, d_output, width*height*4, cudaMemcpyDeviceToHost));
 
-    sdkSavePPM4ub("volume.ppm", h_output, width, height);
+	Mat screen =  Mat(Size(width, height), CV_8UC4, Scalar::all(128));
+	// unsigned char *h_output = (unsigned char *)malloc(width*height*4);
+	// h_output = screen.ptr<uchar4>();
+	uchar4 *ptrScreen = screen.ptr<uchar4>();
+	
+	imshow("Volume Rendering Viewer", screen);
+	// namedWindow("Volume Rendering Viewer", CV_WINDOW_AUTOSIZE | CV_WINDOW_KEEPRATIO | CV_GUI_EXPANDED);
+	// namedWindow("Volume Rendering Viewer", CV_WINDOW_NORMAL | CV_WINDOW_KEEPRATIO | CV_GUI_EXPANDED);
+	waitKey(0);
+	setMouseCallback( "Volume Rendering Viewer", onMouse, 0 );
+	while(1)
+	{
+		render_kernel(gridSize, blockSize, d_output, width, height, density, brightness, transferOffset, transferScale);
+		// Copy to host
+		cudaMemcpy(h_output, d_output, width*height*4, cudaMemcpyDeviceToHost);
+		// Re address pointer
+		memcpy(ptrScreen, h_output, width*height*4);
+		// Display
+		cvtColor(screen, screen, CV_BGRA2RGBA); // OpenCV handle image in BGRA color space, we need to swap the channels B and R
+		
+		imshow("Volume Rendering Viewer", screen);
+		
+		// For debugging purpose, rotate automatically to check the viewer
+		// rotate();
+		const float angle = 3.1415926f / 30.0f;
+		float rotx[16] = {1.0f, 0.0f, 0.0f, 0.0f,
+						  0.0f, cos(angle), sin(angle), 0.0f,
+						  0.0f,-sin(angle), cos(angle), 0.0f,
+						  0.0f, 0.0f, 0.0f, 1.0f};
+		MatrixMul(modelView, 4, 4, 
+				  rotx, 4, 4, 
+				  modelView);
+		invViewMatrix[0] = modelView[0];
+		invViewMatrix[1] = modelView[4];
+		invViewMatrix[2] = modelView[8];
+		invViewMatrix[3] = modelView[12];
+		invViewMatrix[4] = modelView[1];
+		invViewMatrix[5] = modelView[5];
+		invViewMatrix[6] = modelView[9];
+		invViewMatrix[7] = modelView[13];
+		invViewMatrix[8] = modelView[2];
+		invViewMatrix[9] = modelView[6];
+		invViewMatrix[10] = modelView[10];
+		invViewMatrix[11] = modelView[14];
+
+		// call CUDA kernel, writing results to PBO
+		copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
+		
+		char key = waitKey(500);
+		if( key == 27 || key == 'Q' || key == 'q' )	break;
+		
+		imshow("Volume Rendering Viewer", Mat::zeros(Size(width, height), CV_8UC4)); //flush the display 
+	}
+    // sdkSavePPM4ub("volume.ppm", h_output, width, height);
     // bTestResult = sdkComparePPM("volume.ppm", sdkFindFilePath(ref_file, exec_path), MAX_EPSILON_ERROR, THRESHOLD, true);
 
     cudaFree(d_output);
     free(h_output);
-    cleanup();
+    // cleanup();
 
     // exit(bTestResult ? EXIT_SUCCESS : EXIT_FAILURE);
 
